@@ -233,21 +233,22 @@ function parseBR(text) {
    ESTRUTURA PADRÃO DE UM MÊS
    ============================================================ */
 
-const zerosFrom = (defs, useDef = false) =>
-  Object.fromEntries(defs.map((d) => [d.key, useDef ? d.def : 0]));
+const zerosFrom = (defs) => Object.fromEntries(defs.map((d) => [d.key, 0]));
 
+// Conta nova começa 100% zerada — os dados da Thaura entram apenas pelo
+// arquivo local (dadosPlanilha.json) ou pelo botão "Importar dados".
 function defaultMonth() {
   return {
     dre: Object.fromEntries(DRE_INPUTS.map((k) => [k, 0])),
-    fixos: zerosFrom(FIXOS_DEF, true),
-    variaveis: zerosFrom(VARIAVEIS_DEF, true),
-    anuais: zerosFrom(ANUAIS_DEF, true),
+    fixos: zerosFrom(FIXOS_DEF),
+    variaveis: zerosFrom(VARIAVEIS_DEF),
+    anuais: zerosFrom(ANUAIS_DEF),
     pessoais: zerosFrom(PESSOAIS_DEF),
     prec: {
-      horas: 100,
-      prolaboreHora: 100,
+      horas: 0,
+      prolaboreHora: 0,
       itens: Object.fromEntries(
-        PRECOS_DEF.map((p) => [p.key, { preco: p.preco, sessoes: p.sessoes }])
+        PRECOS_DEF.map((p) => [p.key, { preco: 0, sessoes: p.sessoes }])
       ),
     },
   };
