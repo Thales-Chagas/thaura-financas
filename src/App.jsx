@@ -1083,7 +1083,7 @@ function TelaLogin({ modo, nome, onCriar, onDesbloquear, onEsqueci, escuro, onTe
             {modo === "lock" ? <Lock size={26} /> : <Leaf size={26} />}
           </div>
           <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">
-            {modo === "lock" ? `Olá, ${nome}!` : "Bem-vinda ao Thaura Finanças"}
+            {modo === "lock" ? `Olá, ${nome}!` : "Bem-vinda ao Thayfinance"}
           </h1>
           <p className="mt-1 text-sm text-slate-400">
             {modo === "lock"
@@ -1423,6 +1423,13 @@ export default function App() {
 
   const viewTitle = NAV.find((n) => n.id === view)?.label || "";
 
+  // Nome do app: depois do login vira "{nome}finance" (ex.: Thaysafinance)
+  const nomeApp = login?.nome ? `${login.nome.trim().split(/\s+/)[0]}finance` : "Thayfinance";
+
+  useEffect(() => {
+    document.title = `${nomeApp} — Controle financeiro`;
+  }, [nomeApp]);
+
   if (auth === "init") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-400 dark:bg-slate-950">
@@ -1454,7 +1461,7 @@ export default function App() {
             <Leaf size={20} />
           </div>
           <div>
-            <p className="text-base font-bold leading-tight text-slate-800 dark:text-slate-100">Thaura Finanças</p>
+            <p className="text-base font-bold leading-tight text-slate-800 dark:text-slate-100">{nomeApp}</p>
             <p className="text-xs text-slate-400">Controle financeiro</p>
           </div>
         </div>
@@ -1500,7 +1507,7 @@ export default function App() {
               <div className="rounded-lg bg-emerald-600 p-1.5 text-white">
                 <Leaf size={16} />
               </div>
-              <span className="text-sm font-bold">Thaura Finanças</span>
+              <span className="text-sm font-bold">{nomeApp}</span>
             </div>
 
             <div className="flex items-center gap-1.5">

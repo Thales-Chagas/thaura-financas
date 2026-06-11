@@ -13,9 +13,9 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["favicon.png", "apple-touch-icon.png"],
       manifest: {
-        name: "Thaura Finanças",
-        short_name: "Thaura",
-        description: "Controle financeiro — Thaura",
+        name: "Thayfinance",
+        short_name: "Thayfinance",
+        description: "Controle financeiro — Thayfinance",
         lang: "pt-BR",
         theme_color: "#059669",
         background_color: "#f8fafc",
