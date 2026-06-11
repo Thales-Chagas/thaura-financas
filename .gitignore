@@ -1,0 +1,9 @@
+node_modules
+dist
+dev-dist
+
+# Dados financeiros reais â€” nunca publicar
+src/dadosPlanilha.json
+
+# Configuração local do Claude Code
+.claude/
