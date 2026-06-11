@@ -21,6 +21,9 @@ import {
   Percent,
   PiggyBank,
   Leaf,
+  Moon,
+  Sun,
+  Lock,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -47,6 +50,22 @@ const SEED = seedFiles["./dadosPlanilha.json"]?.default ?? { months: {} };
    ============================================================ */
 
 const STORAGE_KEY = "financas_app_data";
+const LOGIN_KEY = "financas_app_login";
+const TEMA_KEY = "financas_app_tema";
+
+// Hash do PIN (nunca guardamos o PIN em si)
+async function hashPin(pin, salt) {
+  const texto = salt + ":" + pin;
+  try {
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(texto));
+    return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  } catch {
+    // ambientes sem crypto.subtle (ex.: http sem https)
+    let h = 0;
+    for (let i = 0; i < texto.length; i++) h = (Math.imul(31, h) + texto.charCodeAt(i)) | 0;
+    return "f" + (h >>> 0).toString(16);
+  }
+}
 
 const MESES = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
@@ -318,6 +337,8 @@ function CurrencyField({ value, onChange, className = "", placeholder = "0,00" }
       className={
         "w-28 sm:w-32 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-right text-sm " +
         "text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 " +
+        "dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500 " +
+        "dark:focus:border-emerald-500 dark:focus:ring-emerald-900/40 " +
         className
       }
     />
@@ -326,7 +347,12 @@ function CurrencyField({ value, onChange, className = "", placeholder = "0,00" }
 
 function Card({ children, className = "" }) {
   return (
-    <div className={"rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 " + className}>
+    <div
+      className={
+        "rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900 sm:p-5 " +
+        className
+      }
+    >
       {children}
     </div>
   );
@@ -334,14 +360,14 @@ function Card({ children, className = "" }) {
 
 function StatCard({ icon: Icon, label, value, sub, tone = "default" }) {
   const tones = {
-    default: "text-slate-800",
+    default: "text-slate-800 dark:text-slate-100",
     good: "text-emerald-600",
     bad: "text-red-600",
     warn: "text-amber-600",
   };
   return (
     <Card className="flex items-start gap-2.5 !p-3 sm:gap-3 sm:!p-5">
-      <div className="hidden rounded-xl bg-emerald-50 p-2.5 text-emerald-600 sm:block">
+      <div className="hidden rounded-xl bg-emerald-50 p-2.5 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400 sm:block">
         <Icon size={20} />
       </div>
       <div className="min-w-0">
@@ -360,7 +386,7 @@ function StatCard({ icon: Icon, label, value, sub, tone = "default" }) {
 function SectionTitle({ children, right }) {
   return (
     <div className="mb-3 flex items-center justify-between gap-2">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-600">{children}</h2>
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">{children}</h2>
       {right}
     </div>
   );
@@ -371,7 +397,9 @@ function TotalRow({ label, value, strong = false }) {
     <div
       className={
         "flex items-center justify-between rounded-xl px-3 py-2 " +
-        (strong ? "bg-emerald-600 text-white" : "bg-emerald-50 text-emerald-800")
+        (strong
+          ? "bg-emerald-600 text-white"
+          : "bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300")
       }
     >
       <span className="text-sm font-semibold">{label}</span>
@@ -382,10 +410,10 @@ function TotalRow({ label, value, strong = false }) {
 
 function ItemTable({ defs, values, onChange }) {
   return (
-    <div className="divide-y divide-slate-100">
+    <div className="divide-y divide-slate-100 dark:divide-slate-800">
       {defs.map((d) => (
         <div key={d.key} className="flex items-center justify-between gap-2 py-1.5">
-          <span className="text-sm text-slate-600">{d.label}</span>
+          <span className="text-sm text-slate-600 dark:text-slate-300">{d.label}</span>
           <CurrencyField value={values[d.key] || 0} onChange={(v) => onChange(d.key, v)} />
         </div>
       ))}
@@ -399,7 +427,11 @@ function ItemTable({ defs, values, onChange }) {
 
 function DreLine({ prefix, label, value, pct, input, bold = false, indent = false, tone }) {
   const toneCls =
-    tone === "good" ? "text-emerald-700" : tone === "bad" ? "text-red-600" : "text-slate-800";
+    tone === "good"
+      ? "text-emerald-700 dark:text-emerald-400"
+      : tone === "bad"
+      ? "text-red-600 dark:text-red-400"
+      : "text-slate-800 dark:text-slate-100";
   return (
     <div
       className={
@@ -408,7 +440,14 @@ function DreLine({ prefix, label, value, pct, input, bold = false, indent = fals
       }
     >
       <span className="w-6 text-xs font-semibold text-slate-400">{prefix}</span>
-      <span className={"text-sm " + (bold ? "font-semibold text-slate-800" : "text-slate-600")}>
+      <span
+        className={
+          "text-sm " +
+          (bold
+            ? "font-semibold text-slate-800 dark:text-slate-100"
+            : "text-slate-600 dark:text-slate-300")
+        }
+      >
         {label}
       </span>
       {input ? (
@@ -464,13 +503,13 @@ function ModuloDre({ month, setDre, custos }) {
         >
           DRE — Resultado mensal
         </SectionTitle>
-        <div className="grid grid-cols-[auto_1fr_auto_auto] gap-2 border-b border-slate-100 pb-1 text-xs font-semibold uppercase text-slate-400">
+        <div className="grid grid-cols-[auto_1fr_auto_auto] gap-2 border-b border-slate-100 pb-1 text-xs font-semibold uppercase text-slate-400 dark:border-slate-800">
           <span className="w-6" />
           <span>Descrição</span>
           <span className="w-28 text-right sm:w-32">R$</span>
           <span className="w-14 text-right">%</span>
         </div>
-        <div className="divide-y divide-slate-50">
+        <div className="divide-y divide-slate-50 dark:divide-slate-800">
           <DreLine label="FATURAMENTO" bold input={inp("faturamento")} pct={r.faturamento > 0 ? 100 : null} />
           <DreLine prefix="(-)" label="CUSTO VARIÁVEL (CMV)" input={inp("cmv")} pct={r.pct(r.cmv)} />
           <DreLine prefix="(-)" label="DESPESA VARIÁVEL" input={inp("despesaVariavel")} pct={r.pct(r.despesaVariavel)} />
@@ -502,7 +541,7 @@ function ModuloCustos({ month, setField, onCopyPrev }) {
         <p className="text-sm text-slate-500">Custos do negócio — Thaura</p>
         <button
           onClick={onCopyPrev}
-          className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100"
+          className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300 dark:hover:bg-emerald-900"
         >
           <Copy size={15} /> Copiar do mês anterior
         </button>
@@ -604,8 +643,8 @@ function ModuloPrecificacao({ month, setPrec, setPrecItem }) {
               className="!w-full"
             />
           </div>
-          <div className="rounded-xl bg-slate-50 p-3 text-xs text-slate-500">
-            <b className="text-slate-700">Como calculamos:</b> custo por hora = (total de custos −
+          <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800/60 text-xs text-slate-500">
+            <b className="text-slate-700 dark:text-slate-200">Como calculamos:</b> custo por hora = (total de custos −
             pró-labore) ÷ horas. Valor mínimo = custo por hora + pró-labore desejado.
           </div>
         </div>
@@ -616,7 +655,7 @@ function ModuloPrecificacao({ month, setPrec, setPrecItem }) {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] text-sm">
             <thead>
-              <tr className="border-b border-slate-100 text-left text-xs font-semibold uppercase text-slate-400">
+              <tr className="border-b border-slate-100 text-left text-xs font-semibold uppercase text-slate-400 dark:border-slate-800">
                 <th className="py-2 pr-2">Serviço</th>
                 <th className="py-2 pr-2 text-right">Sessões</th>
                 <th className="py-2 pr-2 text-right">Preço atual</th>
@@ -625,7 +664,7 @@ function ModuloPrecificacao({ month, setPrec, setPrecItem }) {
                 <th className="py-2 text-right">Lucro</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
+            <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
               {PRECOS_DEF.map((p) => {
                 const it = prec.itens[p.key] || { preco: 0, sessoes: 1 };
                 const custo = custoHora * (it.sessoes || 0);
@@ -634,7 +673,7 @@ function ModuloPrecificacao({ month, setPrec, setPrecItem }) {
                 const margemPct = it.preco > 0 ? (margem / it.preco) * 100 : null;
                 return (
                   <tr key={p.key}>
-                    <td className="py-2 pr-2 text-slate-700">{p.label}</td>
+                    <td className="py-2 pr-2 text-slate-700 dark:text-slate-200">{p.label}</td>
                     <td className="py-2 pr-2 text-right">
                       <CurrencyField
                         value={it.sessoes || 0}
@@ -651,7 +690,7 @@ function ModuloPrecificacao({ month, setPrec, setPrecItem }) {
                       />
                     </td>
                     <td className="py-2 pr-2 text-right tabular-nums text-slate-500">{fmtBRL(custo)}</td>
-                    <td className="py-2 pr-2 text-right tabular-nums font-medium text-slate-700">
+                    <td className="py-2 pr-2 text-right tabular-nums font-medium text-slate-700 dark:text-slate-200">
                       {fmtBRL(margem)}
                       <span className="ml-1 text-xs text-slate-400">
                         {margemPct !== null ? `(${fmtPct(margemPct)})` : ""}
@@ -686,7 +725,7 @@ function ModuloPrecificacao({ month, setPrec, setPrecItem }) {
 
 const PIE_COLORS = ["#10b981", "#6ee7b7", "#94a3b8"];
 
-function ModuloDashboard({ data, year, monthIdx }) {
+function ModuloDashboard({ data, year, monthIdx, escuro }) {
   const key = monthKey(year, monthIdx);
   const m = mergeMonth(data.months[key]);
   const dre = calcDre(m);
@@ -749,7 +788,7 @@ function ModuloDashboard({ data, year, monthIdx }) {
       {(alertaLucro || alertaPessoal) && (
         <div className="space-y-2">
           {alertaLucro && (
-            <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
               <AlertTriangle size={18} className="mt-0.5 shrink-0" />
               <div>
                 <b>Lucro líquido negativo neste mês.</b> Revise as despesas fixas e o pró-labore, e
@@ -759,7 +798,7 @@ function ModuloDashboard({ data, year, monthIdx }) {
             </div>
           )}
           {alertaPessoal && (
-            <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
+            <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
               <AlertTriangle size={18} className="mt-0.5 shrink-0" />
               <div>
                 <b>Gastos pessoais acima de 50% do faturamento</b> (
@@ -777,14 +816,14 @@ function ModuloDashboard({ data, year, monthIdx }) {
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={barData} margin={{ top: 5, right: 5, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke={escuro ? "#1e293b" : "#f1f5f9"} vertical={false} />
                 <XAxis dataKey="name" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false}
                   tickFormatter={(v) => (v >= 1000 ? (v / 1000).toLocaleString("pt-BR") + "k" : v)} />
                 <Tooltip formatter={(v) => fmtBRL(v)} contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 13 }} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Bar dataKey="Faturamento" fill="#10b981" radius={[6, 6, 0, 0]} />
-                <Bar dataKey="Custos" fill="#cbd5e1" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="Custos" fill={escuro ? "#475569" : "#cbd5e1"} radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -843,12 +882,12 @@ function ModuloDashboard({ data, year, monthIdx }) {
               icon: Home,
             },
           ].map((ind) => (
-            <div key={ind.label} className="rounded-xl bg-slate-50 p-3">
+            <div key={ind.label} className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800/60">
               <div className="flex items-center gap-2 text-slate-500">
                 <ind.icon size={15} />
                 <span className="text-xs font-medium">{ind.label}</span>
               </div>
-              <p className="mt-1 text-lg font-semibold text-slate-800">{ind.value}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-800 dark:text-slate-100">{ind.value}</p>
               <p className="text-xs text-slate-400">{ind.sub}</p>
             </div>
           ))}
@@ -920,9 +959,9 @@ function ModuloPlanejamento({ data, setMeta }) {
             const progress = pct !== null ? Math.max(0, Math.min(100, pct)) : 0;
             const onTrack = row.inverse ? pct !== null && pct <= 100 : pct !== null && pct >= 100;
             return (
-              <div key={row.key} className="rounded-xl border border-slate-100 p-3">
+              <div key={row.key} className="rounded-xl border border-slate-100 p-3 dark:border-slate-800">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-sm font-medium text-slate-700">{row.label}</span>
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{row.label}</span>
                   <div className="flex items-center gap-4">
                     <div className="text-right">
                       <p className="text-[10px] font-semibold uppercase text-slate-400">Meta 2026</p>
@@ -933,12 +972,12 @@ function ModuloPlanejamento({ data, setMeta }) {
                           className="!w-28"
                         />
                       ) : (
-                        <p className="text-sm font-semibold tabular-nums text-slate-700">{fmtBRL(meta)}</p>
+                        <p className="text-sm font-semibold tabular-nums text-slate-700 dark:text-slate-200">{fmtBRL(meta)}</p>
                       )}
                     </div>
                     <div className="text-right">
                       <p className="text-[10px] font-semibold uppercase text-slate-400">Realizado</p>
-                      <p className="text-sm font-semibold tabular-nums text-slate-700">{fmtBRL(real)}</p>
+                      <p className="text-sm font-semibold tabular-nums text-slate-700 dark:text-slate-200">{fmtBRL(real)}</p>
                     </div>
                     <div className="w-16 text-right">
                       <p className="text-[10px] font-semibold uppercase text-slate-400">Variação</p>
@@ -953,7 +992,7 @@ function ModuloPlanejamento({ data, setMeta }) {
                     </div>
                   </div>
                 </div>
-                <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
                   <div
                     className={
                       "h-full rounded-full transition-all " +
@@ -975,6 +1014,162 @@ function ModuloPlanejamento({ data, setMeta }) {
           lucro da meta são calculados a partir dos demais campos.
         </p>
       </Card>
+    </div>
+  );
+}
+
+/* ============================================================
+   TELA DE LOGIN (primeiro uso + bloqueio opcional por PIN)
+   ============================================================ */
+
+function CampoLogin({ label, ...props }) {
+  return (
+    <div>
+      <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
+        {label}
+      </label>
+      <input
+        {...props}
+        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500 dark:focus:border-emerald-500 dark:focus:ring-emerald-900/40"
+      />
+    </div>
+  );
+}
+
+function TelaLogin({ modo, nome, onCriar, onDesbloquear, onEsqueci, escuro, onTema }) {
+  const [nomeInput, setNomeInput] = useState("");
+  const [pin, setPin] = useState("");
+  const [pin2, setPin2] = useState("");
+  const [pedirSempre, setPedirSempre] = useState(true);
+  const [erro, setErro] = useState("");
+  const [verificando, setVerificando] = useState(false);
+
+  const pinValido = (p) => /^\d{4,6}$/.test(p);
+
+  async function criar(e) {
+    e.preventDefault();
+    if (!nomeInput.trim()) return setErro("Digite como você quer ser chamada.");
+    if (!pinValido(pin)) return setErro("O PIN precisa ter de 4 a 6 números.");
+    if (pin !== pin2) return setErro("Os dois PINs não são iguais. Tente de novo.");
+    setErro("");
+    await onCriar(nomeInput.trim(), pin, pedirSempre);
+  }
+
+  async function desbloquear(e) {
+    e.preventDefault();
+    if (!pinValido(pin)) return setErro("Digite o PIN (4 a 6 números).");
+    setVerificando(true);
+    const ok = await onDesbloquear(pin);
+    setVerificando(false);
+    if (!ok) {
+      setPin("");
+      setErro("PIN incorreto. Tente de novo.");
+    }
+  }
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 dark:bg-slate-950">
+      <button
+        onClick={onTema}
+        aria-label="Alternar modo claro/escuro"
+        className="fixed right-4 top-4 rounded-full border border-slate-200 bg-white p-2.5 text-slate-400 transition hover:text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:hover:text-slate-300"
+      >
+        {escuro ? <Sun size={18} /> : <Moon size={18} />}
+      </button>
+
+      <div className="w-full max-w-sm rounded-3xl border border-slate-200 bg-white p-7 dark:border-slate-700 dark:bg-slate-900">
+        <div className="mb-6 flex flex-col items-center text-center">
+          <div className="mb-3 rounded-2xl bg-emerald-600 p-3.5 text-white">
+            {modo === "lock" ? <Lock size={26} /> : <Leaf size={26} />}
+          </div>
+          <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">
+            {modo === "lock" ? `Olá, ${nome}!` : "Bem-vinda ao Thaura Finanças"}
+          </h1>
+          <p className="mt-1 text-sm text-slate-400">
+            {modo === "lock"
+              ? "Digite seu PIN para entrar"
+              : "Vamos preparar seu app em 10 segundos"}
+          </p>
+        </div>
+
+        {modo === "setup" ? (
+          <form onSubmit={criar} className="space-y-4">
+            <CampoLogin
+              label="Como você quer ser chamada?"
+              type="text"
+              value={nomeInput}
+              onChange={(e) => setNomeInput(e.target.value)}
+              placeholder="Seu nome"
+              autoFocus
+            />
+            <CampoLogin
+              label="Crie um PIN (4 a 6 números)"
+              type="password"
+              inputMode="numeric"
+              maxLength={6}
+              value={pin}
+              onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
+              placeholder="••••"
+            />
+            <CampoLogin
+              label="Repita o PIN"
+              type="password"
+              inputMode="numeric"
+              maxLength={6}
+              value={pin2}
+              onChange={(e) => setPin2(e.target.value.replace(/\D/g, ""))}
+              placeholder="••••"
+            />
+            <label className="flex cursor-pointer items-center gap-2.5 text-sm text-slate-600 dark:text-slate-300">
+              <input
+                type="checkbox"
+                checked={pedirSempre}
+                onChange={(e) => setPedirSempre(e.target.checked)}
+                className="h-4 w-4 accent-emerald-600"
+              />
+              Pedir o PIN sempre que o app abrir
+            </label>
+            {erro && <p className="text-sm text-red-600 dark:text-red-400">{erro}</p>}
+            <button
+              type="submit"
+              className="w-full rounded-xl bg-emerald-600 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700"
+            >
+              Começar
+            </button>
+            <p className="text-center text-xs text-slate-400">
+              O PIN fica guardado só neste aparelho.
+            </p>
+          </form>
+        ) : (
+          <form onSubmit={desbloquear} className="space-y-4">
+            <CampoLogin
+              label="Seu PIN"
+              type="password"
+              inputMode="numeric"
+              maxLength={6}
+              value={pin}
+              onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
+              placeholder="••••"
+              autoFocus
+            />
+            {erro && <p className="text-sm text-red-600 dark:text-red-400">{erro}</p>}
+            <button
+              type="submit"
+              disabled={verificando}
+              className="w-full rounded-xl bg-emerald-600 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
+            >
+              {verificando ? "Verificando..." : "Entrar"}
+            </button>
+            <button
+              type="button"
+              onClick={onEsqueci}
+              className="w-full text-center text-xs text-slate-400 underline-offset-2 hover:underline"
+            >
+              Esqueci o PIN
+            </button>
+          </form>
+        )}
+      </div>
     </div>
   );
 }
@@ -1002,13 +1197,46 @@ export default function App() {
   const [status, setStatus] = useState("idle"); // idle | saving | saved | error
   const [toast, setToast] = useState(null);
   const [loaded, setLoaded] = useState(false);
+  const [login, setLogin] = useState(null); // {nome, salt, pinHash, pedirSempre}
+  const [auth, setAuth] = useState("init"); // init | setup | lock | open
+  const [escuro, setEscuro] = useState(
+    () => {
+      try {
+        return localStorage.getItem(TEMA_KEY) === "escuro";
+      } catch {
+        return false;
+      }
+    }
+  );
   const dirtyRef = useRef(false);
   const toastTimer = useRef(null);
   const fileRef = useRef(null);
 
+  // Aplica o tema escuro/claro
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", escuro);
+    try {
+      localStorage.setItem(TEMA_KEY, escuro ? "escuro" : "claro");
+    } catch {
+      /* sem armazenamento disponível */
+    }
+  }, [escuro]);
+
   // Carrega dados salvos ao abrir
   useEffect(() => {
     (async () => {
+      try {
+        const rawLogin = await storageGet(LOGIN_KEY);
+        const conf = rawLogin ? JSON.parse(rawLogin) : null;
+        if (conf && conf.pinHash) {
+          setLogin(conf);
+          setAuth(conf.pedirSempre ? "lock" : "open");
+        } else {
+          setAuth("setup");
+        }
+      } catch {
+        setAuth("setup");
+      }
       try {
         const raw = await storageGet(STORAGE_KEY);
         const parsed = raw ? JSON.parse(raw) : null;
@@ -1113,6 +1341,34 @@ export default function App() {
     showToast("Custos copiados do mês anterior ✓");
   }
 
+  async function criarLogin(nome, pin, pedirSempre) {
+    const salt = Math.random().toString(36).slice(2, 12);
+    const conf = { nome, salt, pinHash: await hashPin(pin, salt), pedirSempre };
+    await storageSet(LOGIN_KEY, JSON.stringify(conf));
+    setLogin(conf);
+    setAuth("open");
+    showToast(`Tudo pronto, ${nome}! ✓`);
+  }
+
+  async function desbloquear(pin) {
+    if (!login) return false;
+    const ok = (await hashPin(pin, login.salt)) === login.pinHash;
+    if (ok) setAuth("open");
+    return ok;
+  }
+
+  async function esqueciPin() {
+    if (
+      !window.confirm(
+        "Redefinir o PIN? Seus dados financeiros NÃO serão apagados — você só vai criar um novo PIN."
+      )
+    )
+      return;
+    await storageSet(LOGIN_KEY, "");
+    setLogin(null);
+    setAuth("setup");
+  }
+
   function importData(file) {
     if (!file) return;
     const reader = new FileReader();
@@ -1167,16 +1423,38 @@ export default function App() {
 
   const viewTitle = NAV.find((n) => n.id === view)?.label || "";
 
+  if (auth === "init") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-400 dark:bg-slate-950">
+        <Loader2 size={20} className="animate-spin" />
+      </div>
+    );
+  }
+
+  if (auth === "setup" || auth === "lock") {
+    return (
+      <TelaLogin
+        modo={auth}
+        nome={login?.nome}
+        onCriar={criarLogin}
+        onDesbloquear={desbloquear}
+        onEsqueci={esqueciPin}
+        escuro={escuro}
+        onTema={() => setEscuro((e) => !e)}
+      />
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800">
+    <div className="min-h-screen bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100">
       {/* Sidebar — desktop */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-slate-200 bg-white md:flex">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 md:flex">
         <div className="flex items-center gap-2.5 px-5 py-5">
           <div className="rounded-xl bg-emerald-600 p-2 text-white">
             <Leaf size={20} />
           </div>
           <div>
-            <p className="text-base font-bold leading-tight text-slate-800">Thaura Finanças</p>
+            <p className="text-base font-bold leading-tight text-slate-800 dark:text-slate-100">Thaura Finanças</p>
             <p className="text-xs text-slate-400">Controle financeiro</p>
           </div>
         </div>
@@ -1188,8 +1466,8 @@ export default function App() {
               className={
                 "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition " +
                 (view === n.id
-                  ? "bg-emerald-50 text-emerald-700"
-                  : "text-slate-500 hover:bg-slate-50 hover:text-slate-700")
+                  ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                  : "text-slate-500 hover:bg-slate-50 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200")
               }
             >
               <n.icon size={18} />
@@ -1200,13 +1478,13 @@ export default function App() {
         <div className="space-y-2 px-3 pb-5">
           <button
             onClick={exportData}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-50"
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
           >
             <Download size={16} /> Exportar dados
           </button>
           <button
             onClick={() => fileRef.current?.click()}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-50"
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
           >
             <Upload size={16} /> Importar dados
           </button>
@@ -1216,7 +1494,7 @@ export default function App() {
       {/* Conteúdo */}
       <div className="md:pl-60">
         {/* Header fixo: mês + status */}
-        <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
+        <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-900/90">
           <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2 px-4 py-3">
             <div className="flex items-center gap-2 md:hidden">
               <div className="rounded-lg bg-emerald-600 p-1.5 text-white">
@@ -1228,7 +1506,7 @@ export default function App() {
             <div className="flex items-center gap-1.5">
               <button
                 onClick={() => stepMonth(-1)}
-                className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300"
                 aria-label="Mês anterior"
               >
                 <ChevronLeft size={18} />
@@ -1236,7 +1514,7 @@ export default function App() {
               <select
                 value={monthIdx}
                 onChange={(e) => setMonthIdx(Number(e.target.value))}
-                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm font-medium text-slate-700 outline-none focus:border-emerald-400"
+                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm font-medium text-slate-700 outline-none focus:border-emerald-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
               >
                 {MESES.map((mn, i) => (
                   <option key={mn} value={i}>
@@ -1247,7 +1525,7 @@ export default function App() {
               <select
                 value={year}
                 onChange={(e) => setYear(Number(e.target.value))}
-                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm font-medium text-slate-700 outline-none focus:border-emerald-400"
+                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm font-medium text-slate-700 outline-none focus:border-emerald-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
               >
                 {ANOS.map((y) => (
                   <option key={y} value={y}>
@@ -1257,7 +1535,7 @@ export default function App() {
               </select>
               <button
                 onClick={() => stepMonth(1)}
-                className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300"
                 aria-label="Próximo mês"
               >
                 <ChevronRight size={18} />
@@ -1265,16 +1543,23 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setEscuro((e) => !e)}
+                aria-label="Alternar modo claro/escuro"
+                className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+              >
+                {escuro ? <Sun size={18} /> : <Moon size={18} />}
+              </button>
               <span
                 className={
                   "flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium " +
                   (status === "saving"
-                    ? "bg-amber-50 text-amber-600"
+                    ? "bg-amber-50 text-amber-600 dark:bg-amber-950 dark:text-amber-400"
                     : status === "error"
-                    ? "bg-red-50 text-red-600"
+                    ? "bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-400"
                     : status === "saved"
-                    ? "bg-emerald-50 text-emerald-600"
-                    : "bg-slate-100 text-slate-400")
+                    ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400"
+                    : "bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500")
                 }
               >
                 {status === "saving" ? (
@@ -1297,14 +1582,14 @@ export default function App() {
               </span>
               <button
                 onClick={exportData}
-                className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 md:hidden"
+                className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300 md:hidden"
                 aria-label="Exportar dados"
               >
                 <Download size={18} />
               </button>
               <button
                 onClick={() => fileRef.current?.click()}
-                className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 md:hidden"
+                className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300 md:hidden"
                 aria-label="Importar dados"
               >
                 <Upload size={18} />
@@ -1314,7 +1599,7 @@ export default function App() {
         </header>
 
         <main className="mx-auto max-w-5xl px-4 pb-28 pt-5 md:pb-10">
-          <h1 className="mb-4 text-lg font-bold text-slate-800">
+          <h1 className="mb-4 text-lg font-bold text-slate-800 dark:text-slate-100">
             {viewTitle}
             <span className="ml-2 text-sm font-normal text-slate-400">
               {MESES[monthIdx]} de {year}
@@ -1327,7 +1612,9 @@ export default function App() {
             </div>
           ) : (
             <>
-              {view === "dashboard" && <ModuloDashboard data={data} year={year} monthIdx={monthIdx} />}
+              {view === "dashboard" && (
+                <ModuloDashboard data={data} year={year} monthIdx={monthIdx} escuro={escuro} />
+              )}
               {view === "dre" && <ModuloDre month={month} setDre={setDre} custos={custos} />}
               {view === "custos" && (
                 <ModuloCustos month={month} setField={setField} onCopyPrev={copyPrevMonth} />
@@ -1343,7 +1630,7 @@ export default function App() {
       </div>
 
       {/* Navegação inferior — mobile */}
-      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 md:hidden">
         <div className="grid grid-cols-6">
           {NAV.map((n) => (
             <button
@@ -1351,7 +1638,7 @@ export default function App() {
               onClick={() => setView(n.id)}
               className={
                 "flex flex-col items-center gap-0.5 py-2.5 text-[10px] font-medium transition " +
-                (view === n.id ? "text-emerald-600" : "text-slate-400")
+                (view === n.id ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400 dark:text-slate-500")
               }
             >
               <n.icon size={19} />

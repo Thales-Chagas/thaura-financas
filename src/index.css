@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Modo escuro controlado pela classe .dark no <html> (botão no app) */
+@custom-variant dark (&:where(.dark, .dark *));
+
 html {
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
@@ -7,4 +10,18 @@ html {
 
 body {
   background-color: #f8fafc;
+}
+
+.dark body {
+  background-color: #020617;
+}
+
+/* Tooltip dos gráficos no modo escuro */
+.dark .recharts-default-tooltip {
+  background-color: #0f172a !important;
+  border-color: #334155 !important;
+}
+.dark .recharts-tooltip-label,
+.dark .recharts-tooltip-item {
+  color: #e2e8f0 !important;
 }
