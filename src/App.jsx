@@ -332,33 +332,6 @@ async function hashPin(pin, salt) {
   }
 }
 
-// Lê uma imagem, recorta no quadrado central e reduz para 256px (JPEG leve)
-function lerFoto(file, cb) {
-  if (!file) return cb(null);
-  const img = new Image();
-  const url = URL.createObjectURL(file);
-  img.onload = () => {
-    try {
-      const n = 256;
-      const canvas = document.createElement("canvas");
-      canvas.width = n;
-      canvas.height = n;
-      const ctx = canvas.getContext("2d");
-      const m = Math.min(img.width, img.height);
-      ctx.drawImage(img, (img.width - m) / 2, (img.height - m) / 2, m, m, 0, 0, n, n);
-      cb(canvas.toDataURL("image/jpeg", 0.82));
-    } catch {
-      cb(null);
-    } finally {
-      URL.revokeObjectURL(url);
-    }
-  };
-  img.onerror = () => {
-    URL.revokeObjectURL(url);
-    cb(null);
-  };
-  img.src = url;
-}
 
 /* ============================================================
    EXPORTAÇÕES (PDF via impressão / Excel via CSV)
@@ -540,6 +513,146 @@ function Modal({ titulo, onFechar, children }) {
         {children}
       </div>
     </div>
+  );
+}
+
+// Tela de ajuste de foto: arrastar + zoom dentro de um círculo antes de salvar
+function CropFotoModal({ file, onConfirmar, onFechar }) {
+  const F = 256; // tamanho do quadro de recorte (px)
+  const [url, setUrl] = useState(null); // imagem como data URL (sobrevive ao StrictMode)
+  const [nat, setNat] = useState(null); // dimensões naturais da imagem
+  const [zoom, setZoom] = useState(1);
+  const [off, setOff] = useState({ x: 0, y: 0 });
+  const [erro, setErro] = useState(false);
+  const drag = useRef(null);
+  const imgRef = useRef(null);
+
+  useEffect(() => {
+    const reader = new FileReader();
+    reader.onload = () => setUrl(reader.result);
+    reader.onerror = () => setErro(true);
+    reader.readAsDataURL(file);
+  }, [file]);
+
+  const base = nat ? F / Math.min(nat.w, nat.h) : 1; // "cobrir" o quadro no zoom 1
+  const dispW = nat ? nat.w * base * zoom : F;
+  const dispH = nat ? nat.h * base * zoom : F;
+
+  const limitar = (o) => ({
+    x: Math.min(0, Math.max(F - dispW, o.x)),
+    y: Math.min(0, Math.max(F - dispH, o.y)),
+  });
+
+  function aoCarregar(e) {
+    const w = e.target.naturalWidth, h = e.target.naturalHeight;
+    setNat({ w, h });
+    const b = F / Math.min(w, h);
+    setOff({ x: (F - w * b) / 2, y: (F - h * b) / 2 }); // centraliza
+  }
+
+  useEffect(() => {
+    setOff((o) => limitar(o));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zoom, nat]);
+
+  function descer(e) {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    drag.current = { x: e.clientX, y: e.clientY, ox: off.x, oy: off.y };
+  }
+  function mover(e) {
+    if (!drag.current) return;
+    setOff(
+      limitar({
+        x: drag.current.ox + (e.clientX - drag.current.x),
+        y: drag.current.oy + (e.clientY - drag.current.y),
+      })
+    );
+  }
+  function soltar() {
+    drag.current = null;
+  }
+
+  function confirmar() {
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = F;
+      const ctx = canvas.getContext("2d");
+      const s = base * zoom;
+      ctx.drawImage(imgRef.current, -off.x / s, -off.y / s, F / s, F / s, 0, 0, F, F);
+      onConfirmar(canvas.toDataURL("image/jpeg", 0.85));
+    } catch {
+      setErro(true);
+    }
+  }
+
+  return (
+    <Modal titulo="Ajustar foto" onFechar={onFechar}>
+      <div className="space-y-4">
+        <div
+          className="relative mx-auto touch-none select-none overflow-hidden rounded-full border-2 border-emerald-500 bg-slate-100 dark:bg-slate-800"
+          style={{ width: F, height: F, maxWidth: "100%" }}
+          onPointerDown={descer}
+          onPointerMove={mover}
+          onPointerUp={soltar}
+          onPointerCancel={soltar}
+        >
+          {url ? (
+            <img
+              ref={imgRef}
+              src={url}
+              alt=""
+              onLoad={aoCarregar}
+              onError={() => setErro(true)}
+              draggable={false}
+              style={{
+                position: "absolute",
+                left: off.x,
+                top: off.y,
+                width: dispW,
+                height: dispH,
+                maxWidth: "none",
+                cursor: "grab",
+              }}
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center text-slate-400">
+              <Loader2 size={20} className="animate-spin" />
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-medium text-slate-400">Zoom</span>
+          <input
+            type="range"
+            min="1"
+            max="3"
+            step="0.01"
+            value={zoom}
+            onChange={(e) => setZoom(parseFloat(e.target.value))}
+            className="flex-1 accent-emerald-600"
+          />
+        </div>
+        <p className="text-center text-xs text-slate-400">
+          Arraste a foto para enquadrar e use o zoom. O círculo mostra o que vai aparecer.
+        </p>
+        {erro && (
+          <p className="text-center text-sm text-red-600 dark:text-red-400">
+            Não foi possível abrir essa imagem. Tente outra.
+          </p>
+        )}
+        <div className="flex gap-2">
+          <button
+            onClick={onFechar}
+            className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-medium text-slate-500 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+          >
+            Cancelar
+          </button>
+          <BotaoPrimario onClick={confirmar} className="flex-1 justify-center">
+            <Check size={16} /> Usar foto
+          </BotaoPrimario>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -1689,6 +1802,7 @@ function TelaLogin({ modo, nome, foto, onCriar, onDesbloquear, onEsqueci, escuro
   const [erro, setErro] = useState("");
   const [verificando, setVerificando] = useState(false);
   const [fotoNova, setFotoNova] = useState(null);
+  const [arquivoCrop, setArquivoCrop] = useState(null);
   const fotoRef = useRef(null);
 
   const pinValido = (p) => /^\d{4,6}$/.test(p);
@@ -1751,10 +1865,21 @@ function TelaLogin({ modo, nome, foto, onCriar, onDesbloquear, onEsqueci, escuro
               accept="image/*"
               className="hidden"
               onChange={(e) => {
-                lerFoto(e.target.files?.[0], (f) => f && setFotoNova(f));
+                const f = e.target.files?.[0];
+                if (f) setArquivoCrop(f);
                 e.target.value = "";
               }}
             />
+            {arquivoCrop && (
+              <CropFotoModal
+                file={arquivoCrop}
+                onConfirmar={(d) => {
+                  setFotoNova(d);
+                  setArquivoCrop(null);
+                }}
+                onFechar={() => setArquivoCrop(null)}
+              />
+            )}
             <div className="flex flex-col items-center gap-1.5">
               <button type="button" onClick={() => fotoRef.current?.click()} aria-label="Escolher foto" className="transition hover:opacity-80">
                 {fotoNova ? (
@@ -1883,6 +2008,7 @@ export default function App() {
       return false;
     }
   });
+  const [arquivoFoto, setArquivoFoto] = useState(null);
   const dirtyRef = useRef(false);
   const toastTimer = useRef(null);
   const fileRef = useRef(null);
@@ -2012,18 +2138,13 @@ export default function App() {
     setAuth("lock");
   }
 
-  function trocarFoto(file) {
-    if (!file || !login) return;
-    lerFoto(file, async (f) => {
-      if (!f) {
-        showToast("Não foi possível ler a imagem.", true);
-        return;
-      }
-      const conf = { ...login, foto: f };
-      setLogin(conf);
-      await storageSet(LOGIN_KEY, JSON.stringify(conf));
-      showToast("Foto atualizada ✓");
-    });
+  async function salvarFoto(dataUrl) {
+    if (!login) return;
+    const conf = { ...login, foto: dataUrl };
+    setLogin(conf);
+    setArquivoFoto(null);
+    await storageSet(LOGIN_KEY, JSON.stringify(conf));
+    showToast("Foto atualizada ✓");
   }
 
   /* ---- backup ---- */
@@ -2392,10 +2513,20 @@ export default function App() {
         accept="image/*"
         className="hidden"
         onChange={(e) => {
-          trocarFoto(e.target.files?.[0]);
+          const f = e.target.files?.[0];
+          if (f) setArquivoFoto(f);
           e.target.value = "";
         }}
       />
+
+      {/* Ajuste de enquadramento da foto de perfil */}
+      {arquivoFoto && (
+        <CropFotoModal
+          file={arquivoFoto}
+          onConfirmar={salvarFoto}
+          onFechar={() => setArquivoFoto(null)}
+        />
+      )}
 
       {/* Input oculto para importar backup */}
       <input
