@@ -2070,12 +2070,13 @@ export default function App() {
   const viewTitle = NAV.find((n) => n.id === view)?.label || "";
   const usaMes = ["dashboard", "receitas", "despesas", "relatorios"].includes(view);
 
-  // Nome do app: depois do login vira "{nome}finance" (ex.: Thaysafinance)
-  const nomeApp = login?.nome ? `${login.nome.trim().split(/\s+/)[0]}finance` : "Thayfinance";
+  // Saudação com o nome da pessoa logada; a marca do app é fixa
+  const nomeApp = "Thayfinance";
+  const saudacao = login?.nome ? `Olá, ${login.nome.trim().split(/\s+/)[0]}` : nomeApp;
 
   useEffect(() => {
     document.title = `${nomeApp} — Controle financeiro`;
-  }, [nomeApp]);
+  }, []);
 
   if (auth === "init") {
     return (
@@ -2129,7 +2130,7 @@ export default function App() {
         <div className="flex items-center gap-2.5 px-5 pb-3 pt-5">
           <img src={emblemaUrl} alt="" className="h-10 w-10 object-contain" />
           <div>
-            <p className="text-base font-bold leading-tight text-slate-800 dark:text-slate-100">{nomeApp}</p>
+            <p className="text-base font-bold leading-tight text-slate-800 dark:text-slate-100">{saudacao}</p>
             <p className="text-xs text-slate-400">Controle financeiro</p>
           </div>
         </div>
@@ -2204,7 +2205,7 @@ export default function App() {
                   <img src={emblemaUrl} alt="" className="h-7 w-7 object-contain" />
                 )}
               </button>
-              <span className="text-sm font-bold">{nomeApp}</span>
+              <span className="text-sm font-bold">{saudacao}</span>
             </div>
 
             <div className="md:hidden">{seletorModo}</div>
