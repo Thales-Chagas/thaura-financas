@@ -24,6 +24,8 @@ import {
   Moon,
   Sun,
   Lock,
+  LogOut,
+  Camera,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -1023,6 +1025,34 @@ function ModuloPlanejamento({ data, setMeta }) {
    TELA DE LOGIN (primeiro uso + bloqueio opcional por PIN)
    ============================================================ */
 
+// Lê uma imagem, recorta no quadrado central e reduz para 256px (JPEG leve)
+function lerFoto(file, cb) {
+  if (!file) return cb(null);
+  const img = new Image();
+  const url = URL.createObjectURL(file);
+  img.onload = () => {
+    try {
+      const n = 256;
+      const canvas = document.createElement("canvas");
+      canvas.width = n;
+      canvas.height = n;
+      const ctx = canvas.getContext("2d");
+      const m = Math.min(img.width, img.height);
+      ctx.drawImage(img, (img.width - m) / 2, (img.height - m) / 2, m, m, 0, 0, n, n);
+      cb(canvas.toDataURL("image/jpeg", 0.82));
+    } catch {
+      cb(null);
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  };
+  img.onerror = () => {
+    URL.revokeObjectURL(url);
+    cb(null);
+  };
+  img.src = url;
+}
+
 function CampoLogin({ label, ...props }) {
   return (
     <div>
@@ -1037,13 +1067,15 @@ function CampoLogin({ label, ...props }) {
   );
 }
 
-function TelaLogin({ modo, nome, onCriar, onDesbloquear, onEsqueci, escuro, onTema }) {
+function TelaLogin({ modo, nome, foto, onCriar, onDesbloquear, onEsqueci, escuro, onTema }) {
   const [nomeInput, setNomeInput] = useState("");
   const [pin, setPin] = useState("");
   const [pin2, setPin2] = useState("");
   const [pedirSempre, setPedirSempre] = useState(true);
   const [erro, setErro] = useState("");
   const [verificando, setVerificando] = useState(false);
+  const [fotoNova, setFotoNova] = useState(null);
+  const fotoRef = useRef(null);
 
   const pinValido = (p) => /^\d{4,6}$/.test(p);
 
@@ -1053,7 +1085,7 @@ function TelaLogin({ modo, nome, onCriar, onDesbloquear, onEsqueci, escuro, onTe
     if (!pinValido(pin)) return setErro("O PIN precisa ter de 4 a 6 números.");
     if (pin !== pin2) return setErro("Os dois PINs não são iguais. Tente de novo.");
     setErro("");
-    await onCriar(nomeInput.trim(), pin, pedirSempre);
+    await onCriar(nomeInput.trim(), pin, pedirSempre, fotoNova);
   }
 
   async function desbloquear(e) {
@@ -1080,9 +1112,17 @@ function TelaLogin({ modo, nome, onCriar, onDesbloquear, onEsqueci, escuro, onTe
 
       <div className="w-full max-w-sm rounded-3xl border border-slate-200 bg-white p-7 dark:border-slate-700 dark:bg-slate-900">
         <div className="mb-6 flex flex-col items-center text-center">
-          <div className="mb-3 rounded-2xl bg-emerald-600 p-3.5 text-white">
-            {modo === "lock" ? <Lock size={26} /> : <Leaf size={26} />}
-          </div>
+          {modo === "lock" && foto ? (
+            <img
+              src={foto}
+              alt=""
+              className="mb-3 h-20 w-20 rounded-full border-2 border-emerald-500 object-cover"
+            />
+          ) : (
+            <div className="mb-3 rounded-2xl bg-emerald-600 p-3.5 text-white">
+              {modo === "lock" ? <Lock size={26} /> : <Leaf size={26} />}
+            </div>
+          )}
           <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">
             {modo === "lock" ? `Olá, ${nome}!` : "Bem-vinda ao Thayfinance"}
           </h1>
@@ -1095,6 +1135,39 @@ function TelaLogin({ modo, nome, onCriar, onDesbloquear, onEsqueci, escuro, onTe
 
         {modo === "setup" ? (
           <form onSubmit={criar} className="space-y-4">
+            <input
+              ref={fotoRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                lerFoto(e.target.files?.[0], (f) => f && setFotoNova(f));
+                e.target.value = "";
+              }}
+            />
+            <div className="flex flex-col items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => fotoRef.current?.click()}
+                aria-label="Escolher foto"
+                className="transition hover:opacity-80"
+              >
+                {fotoNova ? (
+                  <img
+                    src={fotoNova}
+                    alt=""
+                    className="h-20 w-20 rounded-full border-2 border-emerald-500 object-cover"
+                  />
+                ) : (
+                  <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-dashed border-slate-300 text-slate-400 dark:border-slate-600">
+                    <Camera size={24} />
+                  </div>
+                )}
+              </button>
+              <span className="text-xs text-slate-400">
+                Foto (opcional) — toque para escolher
+              </span>
+            </div>
             <CampoLogin
               label="Como você quer ser chamada?"
               type="text"
@@ -1212,6 +1285,7 @@ export default function App() {
   const dirtyRef = useRef(false);
   const toastTimer = useRef(null);
   const fileRef = useRef(null);
+  const fotoTrocaRef = useRef(null);
 
   // Aplica o tema escuro/claro
   useEffect(() => {
@@ -1342,9 +1416,9 @@ export default function App() {
     showToast("Custos copiados do mês anterior ✓");
   }
 
-  async function criarLogin(nome, pin, pedirSempre) {
+  async function criarLogin(nome, pin, pedirSempre, foto) {
     const salt = Math.random().toString(36).slice(2, 12);
-    const conf = { nome, salt, pinHash: await hashPin(pin, salt), pedirSempre };
+    const conf = { nome, salt, pinHash: await hashPin(pin, salt), pedirSempre, foto: foto || null };
     await storageSet(LOGIN_KEY, JSON.stringify(conf));
     setLogin(conf);
     setAuth("open");
@@ -1368,6 +1442,24 @@ export default function App() {
     await storageSet(LOGIN_KEY, "");
     setLogin(null);
     setAuth("setup");
+  }
+
+  function sair() {
+    setAuth("lock");
+  }
+
+  function trocarFoto(file) {
+    if (!file || !login) return;
+    lerFoto(file, async (f) => {
+      if (!f) {
+        showToast("Não foi possível ler a imagem.", true);
+        return;
+      }
+      const conf = { ...login, foto: f };
+      setLogin(conf);
+      await storageSet(LOGIN_KEY, JSON.stringify(conf));
+      showToast("Foto atualizada ✓");
+    });
   }
 
   function importData(file) {
@@ -1444,6 +1536,7 @@ export default function App() {
       <TelaLogin
         modo={auth}
         nome={login?.nome}
+        foto={login?.foto}
         onCriar={criarLogin}
         onDesbloquear={desbloquear}
         onEsqueci={esqueciPin}
@@ -1484,6 +1577,41 @@ export default function App() {
           ))}
         </nav>
         <div className="space-y-2 px-3 pb-5">
+          <div className="flex items-center gap-2.5 rounded-xl bg-slate-50 p-2.5 dark:bg-slate-800/60">
+            <button
+              onClick={() => fotoTrocaRef.current?.click()}
+              aria-label="Trocar foto"
+              title="Trocar foto"
+              className="shrink-0 transition hover:opacity-80"
+            >
+              {login?.foto ? (
+                <img src={login.foto} alt="" className="h-9 w-9 rounded-full object-cover" />
+              ) : (
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                  <Camera size={15} />
+                </div>
+              )}
+            </button>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-slate-700 dark:text-slate-200">
+                {login?.nome}
+              </p>
+              <button
+                onClick={() => fotoTrocaRef.current?.click()}
+                className="text-[11px] text-slate-400 underline-offset-2 hover:underline"
+              >
+                Trocar foto
+              </button>
+            </div>
+            <button
+              onClick={sair}
+              aria-label="Sair"
+              title="Sair"
+              className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-red-500 dark:hover:bg-slate-800 dark:hover:text-red-400"
+            >
+              <LogOut size={16} />
+            </button>
+          </div>
           <button
             onClick={exportData}
             className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
@@ -1505,9 +1633,19 @@ export default function App() {
         <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-900/90">
           <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2 px-4 py-3">
             <div className="flex items-center gap-2 md:hidden">
-              <div className="rounded-lg bg-emerald-600 p-1.5 text-white">
-                <Leaf size={16} />
-              </div>
+              <button
+                onClick={() => fotoTrocaRef.current?.click()}
+                aria-label="Trocar foto"
+                className="transition hover:opacity-80"
+              >
+                {login?.foto ? (
+                  <img src={login.foto} alt="" className="h-7 w-7 rounded-full object-cover" />
+                ) : (
+                  <div className="rounded-lg bg-emerald-600 p-1.5 text-white">
+                    <Leaf size={16} />
+                  </div>
+                )}
+              </button>
               <span className="text-sm font-bold">{nomeApp}</span>
             </div>
 
@@ -1602,6 +1740,13 @@ export default function App() {
               >
                 <Upload size={18} />
               </button>
+              <button
+                onClick={sair}
+                className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-red-500 dark:hover:bg-slate-800 dark:hover:text-red-400 md:hidden"
+                aria-label="Sair"
+              >
+                <LogOut size={18} />
+              </button>
             </div>
           </div>
         </header>
@@ -1655,6 +1800,18 @@ export default function App() {
           ))}
         </div>
       </nav>
+
+      {/* Input oculto para trocar a foto do perfil */}
+      <input
+        ref={fotoTrocaRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          trocarFoto(e.target.files?.[0]);
+          e.target.value = "";
+        }}
+      />
 
       {/* Input oculto para importar backup */}
       <input
