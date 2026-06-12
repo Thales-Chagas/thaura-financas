@@ -23,7 +23,9 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      - run: npm ci
+      # npm install (e não ci): o lock gerado no Windows omite pacotes
+      # opcionais de Linux e o npm ci recusa instalar
+      - run: npm install --no-audit --no-fund
       - run: npm run build
       - uses: actions/configure-pages@v4
       - uses: actions/upload-pages-artifact@v3
