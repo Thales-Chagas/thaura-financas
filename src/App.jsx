@@ -20,13 +20,13 @@ import {
   Target,
   Percent,
   PiggyBank,
-  Leaf,
   Moon,
   Sun,
-  Lock,
   LogOut,
   Camera,
 } from "lucide-react";
+import logoUrl from "./logo.png";
+import emblemaUrl from "./emblema.png";
 import {
   ResponsiveContainer,
   BarChart,
@@ -1118,9 +1118,11 @@ function TelaLogin({ modo, nome, foto, onCriar, onDesbloquear, onEsqueci, escuro
               alt=""
               className="mb-3 h-20 w-20 rounded-full border-2 border-emerald-500 object-cover"
             />
+          ) : modo === "lock" ? (
+            <img src={emblemaUrl} alt="" className="mb-3 h-20 w-20 object-contain" />
           ) : (
-            <div className="mb-3 rounded-2xl bg-emerald-600 p-3.5 text-white">
-              {modo === "lock" ? <Lock size={26} /> : <Leaf size={26} />}
+            <div className="mb-2 rounded-2xl bg-white px-4 py-2">
+              <img src={logoUrl} alt="" className="h-28 object-contain" />
             </div>
           )}
           <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">
@@ -1551,9 +1553,7 @@ export default function App() {
       {/* Sidebar — desktop */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 md:flex">
         <div className="flex items-center gap-2.5 px-5 py-5">
-          <div className="rounded-xl bg-emerald-600 p-2 text-white">
-            <Leaf size={20} />
-          </div>
+          <img src={emblemaUrl} alt="" className="h-10 w-10 object-contain" />
           <div>
             <p className="text-base font-bold leading-tight text-slate-800 dark:text-slate-100">{nomeApp}</p>
             <p className="text-xs text-slate-400">Controle financeiro</p>
@@ -1641,9 +1641,7 @@ export default function App() {
                 {login?.foto ? (
                   <img src={login.foto} alt="" className="h-7 w-7 rounded-full object-cover" />
                 ) : (
-                  <div className="rounded-lg bg-emerald-600 p-1.5 text-white">
-                    <Leaf size={16} />
-                  </div>
+                  <img src={emblemaUrl} alt="" className="h-7 w-7 object-contain" />
                 )}
               </button>
               <span className="text-sm font-bold">{nomeApp}</span>
