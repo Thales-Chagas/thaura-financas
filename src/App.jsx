@@ -927,9 +927,12 @@ function PaginaDashboard({ espaco, ano, mesIdx, escuro, irPara }) {
   const receitasMes = soma(doMes.filter((t) => t.tipo === "receita" && t.status === "ok"));
   const despesasMes = soma(doMes.filter((t) => t.tipo === "despesa" && t.status === "ok"));
   const lucro = receitasMes - despesasMes;
-  const saldoAtual =
-    soma(ts.filter((t) => t.tipo === "receita" && t.status === "ok")) -
-    soma(ts.filter((t) => t.tipo === "despesa" && t.status === "ok"));
+  // saldo acumulado: tudo que entrou − saiu até o FIM do mês selecionado,
+  // carregando o resultado (positivo ou negativo) para os meses seguintes
+  const fimMes = prefixo + "-31";
+  const saldoAcumulado =
+    soma(ts.filter((t) => t.tipo === "receita" && t.status === "ok" && t.data <= fimMes)) -
+    soma(ts.filter((t) => t.tipo === "despesa" && t.status === "ok" && t.data <= fimMes));
 
   // comparação com o mês anterior
   let pa = mesIdx - 1, py = ano;
@@ -977,10 +980,10 @@ function PaginaDashboard({ espaco, ano, mesIdx, escuro, irPara }) {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard
           icon={Wallet}
-          label="Saldo atual"
-          value={fmtBRL(saldoAtual)}
-          tone={saldoAtual >= 0 ? "default" : "bad"}
-          sub="Tudo que entrou − saiu"
+          label="Saldo acumulado"
+          value={fmtBRL(saldoAcumulado)}
+          tone={saldoAcumulado >= 0 ? "default" : "bad"}
+          sub={`Tudo até ${MESES_CURTO[mesIdx]}/${ano}, mês a mês`}
         />
         <StatCard icon={TrendingUp} label="Receitas do mês" value={fmtBRL(receitasMes)} sub={varPct(receitasMes, recAnt)} />
         <StatCard icon={TrendingDown} label="Despesas do mês" value={fmtBRL(despesasMes)} sub={varPct(despesasMes, despAnt)} />
@@ -1602,11 +1605,17 @@ function PaginaRelatorios({ espaco, empresarial, ano, mesIdx, nomeApp }) {
   }
 
   // ---- dados anuais ----
+  // saldo que vem dos anos anteriores (carrega resultado, mesmo negativo)
+  const saldoAnterior =
+    soma(ts.filter((t) => t.tipo === "receita" && t.data < `${ano}-01-01`)) -
+    soma(ts.filter((t) => t.tipo === "despesa" && t.data < `${ano}-01-01`));
+  let acumulado = saldoAnterior;
   const anual = MESES.map((nome, i) => {
     const p = mesPrefixo(ano, i);
     const rec = soma(ts.filter((t) => t.tipo === "receita" && t.data.startsWith(p)));
     const desp = soma(ts.filter((t) => t.tipo === "despesa" && t.data.startsWith(p)));
-    return { nome, rec, desp, lucro: rec - desp };
+    acumulado += rec - desp;
+    return { nome, rec, desp, lucro: rec - desp, acumulado };
   });
   const totAnualRec = anual.reduce((a, m) => a + m.rec, 0);
   const totAnualDesp = anual.reduce((a, m) => a + m.desp, 0);
@@ -1650,14 +1659,15 @@ ${empresarial ? `<h2>Despesas por centro de custo</h2>${htmlTabela(["Centro de c
       const titulo = `Relatório anual — ${ano} (${escopo})`;
       if (formato === "pdf") {
         const corpo = `<h1>${nomeApp}</h1><p class="sub">${titulo}</p>
-${htmlTabela(["Mês", "Receitas", "Despesas", "Lucro"], anual.map((m) => [m.nome, fmtBRL(m.rec), fmtBRL(m.desp), fmtBRL(m.lucro)]), ["Total", fmtBRL(totAnualRec), fmtBRL(totAnualDesp), fmtBRL(totAnualRec - totAnualDesp)])}`;
+${saldoAnterior !== 0 ? `<p class="sub">Saldo vindo dos anos anteriores: ${fmtBRL(saldoAnterior)}</p>` : ""}
+${htmlTabela(["Mês", "Receitas", "Despesas", "Lucro", "Acumulado"], anual.map((m) => [m.nome, fmtBRL(m.rec), fmtBRL(m.desp), fmtBRL(m.lucro), fmtBRL(m.acumulado)]), ["Total", fmtBRL(totAnualRec), fmtBRL(totAnualDesp), fmtBRL(totAnualRec - totAnualDesp), fmtBRL(anual[11].acumulado)])}`;
         exportarPDF(titulo, corpo);
       } else {
         exportarExcel(`relatorio-${escopo.toLowerCase()}-${ano}`, [
           [titulo], [],
-          ["Mês", "Receitas", "Despesas", "Lucro"],
-          ...anual.map((m) => [m.nome, fmtNum(m.rec), fmtNum(m.desp), fmtNum(m.lucro)]),
-          ["Total", fmtNum(totAnualRec), fmtNum(totAnualDesp), fmtNum(totAnualRec - totAnualDesp)],
+          ["Mês", "Receitas", "Despesas", "Lucro", "Acumulado"],
+          ...anual.map((m) => [m.nome, fmtNum(m.rec), fmtNum(m.desp), fmtNum(m.lucro), fmtNum(m.acumulado)]),
+          ["Total", fmtNum(totAnualRec), fmtNum(totAnualDesp), fmtNum(totAnualRec - totAnualDesp), fmtNum(anual[11].acumulado)],
         ]);
       }
     }
@@ -1745,7 +1755,8 @@ ${htmlTabela(["Mês", "Receitas", "Despesas", "Lucro"], anual.map((m) => [m.nome
                   <th className="py-2 pr-2">Mês</th>
                   <th className="py-2 pr-2 text-right">Receitas</th>
                   <th className="py-2 pr-2 text-right">Despesas</th>
-                  <th className="py-2 text-right">Lucro</th>
+                  <th className="py-2 pr-2 text-right">Lucro</th>
+                  <th className="py-2 text-right">Acumulado</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
@@ -1756,11 +1767,19 @@ ${htmlTabela(["Mês", "Receitas", "Despesas", "Lucro"], anual.map((m) => [m.nome
                     <td className="py-2 pr-2 text-right tabular-nums text-red-500">{m.desp ? fmtBRL(m.desp) : "—"}</td>
                     <td
                       className={
-                        "py-2 text-right font-medium tabular-nums " +
+                        "py-2 pr-2 text-right font-medium tabular-nums " +
                         (m.lucro > 0 ? "text-emerald-600" : m.lucro < 0 ? "text-red-500" : "text-slate-400")
                       }
                     >
                       {m.rec || m.desp ? fmtBRL(m.lucro) : "—"}
+                    </td>
+                    <td
+                      className={
+                        "py-2 text-right font-semibold tabular-nums " +
+                        (m.acumulado >= 0 ? "text-slate-700 dark:text-slate-200" : "text-red-500")
+                      }
+                    >
+                      {fmtBRL(m.acumulado)}
                     </td>
                   </tr>
                 ))}
@@ -1768,13 +1787,25 @@ ${htmlTabela(["Mês", "Receitas", "Despesas", "Lucro"], anual.map((m) => [m.nome
                   <td className="py-2 pr-2 text-slate-700 dark:text-slate-200">Total</td>
                   <td className="py-2 pr-2 text-right tabular-nums text-emerald-600">{fmtBRL(totAnualRec)}</td>
                   <td className="py-2 pr-2 text-right tabular-nums text-red-500">{fmtBRL(totAnualDesp)}</td>
-                  <td className="py-2 text-right tabular-nums text-slate-700 dark:text-slate-200">
+                  <td className="py-2 pr-2 text-right tabular-nums text-slate-700 dark:text-slate-200">
                     {fmtBRL(totAnualRec - totAnualDesp)}
+                  </td>
+                  <td
+                    className={
+                      "py-2 text-right tabular-nums " +
+                      (anual[11].acumulado >= 0 ? "text-slate-700 dark:text-slate-200" : "text-red-500")
+                    }
+                  >
+                    {fmtBRL(anual[11].acumulado)}
                   </td>
                 </tr>
               </tbody>
             </table>
           </div>
+          <p className="mt-2 text-xs text-slate-400">
+            O "Acumulado" carrega o resultado de cada mês para o seguinte, mesmo quando negativo
+            {saldoAnterior !== 0 ? `, incluindo ${fmtBRL(saldoAnterior)} vindos dos anos anteriores` : ""}.
+          </p>
         </Card>
       )}
     </div>
